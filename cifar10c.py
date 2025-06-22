@@ -17,11 +17,22 @@ from conf import cfg, load_cfg_fom_args
 logger = logging.getLogger(__name__)
 
 
+def get_device():
+    """Get the best available device (CUDA if available, else CPU)."""
+    if torch.cuda.is_available():
+        return torch.device('cuda')
+    else:
+        logger.warning("CUDA not available, using CPU. This will be much slower!")
+        return torch.device('cpu')
+
+
 def evaluate(description):
     load_cfg_fom_args(description)
+    device = get_device()
+    
     # configure model
     base_model = load_model(cfg.MODEL.ARCH, cfg.CKPT_DIR,
-                       cfg.CORRUPTION.DATASET, ThreatModel.corruptions).cuda()
+                       cfg.CORRUPTION.DATASET, ThreatModel.corruptions).to(device)
     if cfg.MODEL.ADAPTATION == "source":
         logger.info("test-time adaptation: NONE")
         model = setup_source(base_model)
@@ -44,7 +55,7 @@ def evaluate(description):
             x_test, y_test = load_cifar10c(cfg.CORRUPTION.NUM_EX,
                                            severity, cfg.DATA_DIR, False,
                                            [corruption_type])
-            x_test, y_test = x_test.cuda(), y_test.cuda()
+            x_test, y_test = x_test.to(device), y_test.to(device)
             acc = accuracy(model, x_test, y_test, cfg.TEST.BATCH_SIZE)
             err = 1. - acc
             logger.info(f"error % [{corruption_type}{severity}]: {err:.2%}")
